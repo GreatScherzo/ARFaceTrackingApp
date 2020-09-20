@@ -1,2 +1,1 @@
-# ARFaceTrackingApp
-勉強会から作ってあげたプログラム
+# Template of Face Tracking App with Mediapipe
