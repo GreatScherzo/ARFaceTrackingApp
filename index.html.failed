@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <!--TensorFlow関連の読み込み-->
+    <script src="https://unpkg.com/@tensorflow/tfjs-core@2.1.0/dist/tf-core.js"></script>
+    <!--nak masukkan model lain -->
+    <script src="https://unpkg.com/@tensorflow/tfjs-converter@2.1.0/dist/tf-converter.js"></script>
+    <!-- -->
+    <script src="https://unpkg.com/@tensorflow/tfjs-backend-webgl@2.1.0/dist/tf-backend-webgl.js"></script>
+    
+    <!--FaceMesh(顔認識の学習モデル)-->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/facemesh"></script>
+    <!--three.js：あとで顔のメッシュ描画の際に使用する-->
+    <script type="module" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script> 
+    <!--以下に自前のスクリプトを記述していく-->
+    
+    
+    
+    <!--勉強会用に用意したthree.jsの初期設定スクリプト-->
+    <script src="threejs-ex.js"></script>
+    
+    <script type = "text/javascript">
+     //ビデオを扱う変数
+      var video;
+      
+      var model;
+      
+      var faceMesh //dia expresskan facemesh points tu sbg satu object, dia satukan semua
+      
+      //ページを読み込み終わったら実行
+      window.onload = function()
+      {
+        //カメラ画像のサイズ設定(とりあえず640x480くらい)
+        //setkan size camera
+        let constraints = { video: { width: 640, height: 480 } };
+        //カメラデバイスの取得
+        //bagitau yg constraint dia camni
+        navigator.mediaDevices.getUserMedia(constraints).then(
+          //bhg utk html
+          function(mediaStream) 
+          {
+            
+            //body内のid=videoの要素を取得
+            //expresskan yg video ialah video yg disengenkan atas tu
+            //dan dapatkan video punya ryouiki
+            video = document.getElementById("video");
+            //リアルタイム映像をvideo要素に対応づける
+            
+            //lpstu dapatkan stream video
+            video.srcObject = mediaStream;
+            //準備が整ったら再生
+            //kalau dah habis load semua meta data (data atas tu)
+            video.onloadedmetadata = function(e) 
+            {
+              //playkan video
+              video.play();  
+              //three.jsによる描画準備
+              //Threee.jsでの描画像に関する
+              InitRendering();
+              //顔の3Dモデルを作成
+              CreateFaceObject();
+              //顔認識を開始(このあと記述)
+              StartTracking();
+              
+            };
+          }
+        )
+        
+        
+      }
+      
+      
+        function CreateFaceObject() 
+      {  
+        //顔の形状をgeometryで管理
+        //sama macam unity punya mesh filter
+        let geometry = new THREE.Geometry();
+        //頂点を登録
+        for (let i = 0; i < 468; i++) 
+        {//push= データを彫り込む
+          geometry.vertices.push(new THREE.Vector3(0, 0, 0));
+        }
+        //色などの見た目情報をmaterial管理
+        //pixel size = 3
+        
+        let material=  new THREE.PointsMaterial( { color: 0x0000FF, size: 3 } );
+        //faceMeshに形状(geometry)と見た目(material)を登録。
+        faceMesh= new THREE.Points( geometry, material );
+        //three.jsに登録(threejs-ex.js内で処理)
+        AddToThreejs(faceMesh);       
+      }
+      
+      
+      
+      //THREE.jsで描画するための準備
+      function InitRendering(){
+        //ビデオ表示領域のサイズを明確に設定
+        let videoWidth = video.videoWidth;
+        let videoHeight = video.videoHeight;
+        video.width = videoWidth;
+        video.height = videoHeight;
+        //描画領域のサイズを指定
+        let canvas = document.getElementById("output");
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+        //描画に関する初期設定 (threejs-ex.js内)
+        InitThreejs(canvas);
+      
+      //トラッキング開始準備の関数
+      async function StartTracking()
+      {
+        //顔認識のための学習モデル読み込み
+        model = await facemesh.load();
+        //顔認識のループ(次のステップで使用)
+        FaceTrackingLoop();
+      }
+      
+      //顔検出と描画のループ
+      async function FaceTrackingLoop() 
+      {
+        //顔の検出
+        //dia detect berapa byk muka kat vid
+        let predictions = await model.estimateFaces(video);
+        
+        //見つかった顔が1つ以上あれば
+        if (predictions.length > 0) 
+        {
+          //検出された顔の情報にアクセスして表示
+          //utk debug
+          //console.log(predictions[0]);
+          
+          //検出された顔の頂点情報にアクセス
+          let keypoints = predictions[0].scaledMesh;
+          //顔の3Dモデルのメッシュ情報にアクセス
+          let geometry=faceMesh.geometry;  
+          
+          for(let i = 0; i < keypoints.length; i++) 
+          {
+            let x = keypoints[i][0];
+            let y = keypoints[i][1];
+            geometry.vertices[i].set(x-video.width/2, -y+video.height/2, 1); 
+          }
+          //情報の更新を許可
+          faceMesh.geometry.verticesNeedUpdate = true;
+          
+ 
+
+        }
+        //上記の情報をThree.jsで描画
+//dia render data atas tu
+        RenderThreejs();
+        //dia loop balik ke atas
+        requestAnimationFrame(FaceTrackingLoop);  
+        
+      }
+        
+      
+    </script>
+    
+    
+    
+    
+  </head>
+  
+  <body>
+    <!--ここで表示領域をレイアウトしていく-->
+    <video id = "video" style = "position: absolute;"></video>
+    <!--muka punya input agak dynamic, dan javascript sgt sesuai dlm handle benda tu. canvas guna nak tulis kat html-->
+    <canvas id="output" style=" position: absolute; "></canvas>
+    
+    
+  </body>
+</html>
+
